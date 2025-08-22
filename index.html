@@ -13,6 +13,7 @@
       --bg: #0f1226; --card: #181b37; --muted: #9aa3b2; --txt: #e8ebf4;
       --accent: #6c7bff; --accent2: #29d3c6; --chip: #22274b; --ring: rgba(108, 123, 255, .35);
       --danger: #ff4d4d; --danger-bg: rgba(255, 77, 77, 0.1);
+      --success: #29d3c6; --success-bg: rgba(41, 211, 198, 0.1);
     }
     * { box-sizing: border-box; }
     body {
@@ -38,11 +39,11 @@
     }
     .pool-inputs span { font-size: 24px; font-weight: bold; color: var(--muted); }
     
-    .wallet-options { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .wallet-options { margin-top: 20px; }
     .wallet-button {
       padding: 14px; border-radius: 12px; border: 1px solid var(--accent);
       background: transparent; color: var(--accent); font-size: 16px; font-weight: 600;
-      cursor: pointer; transition: all 0.2s;
+      cursor: pointer; transition: all 0.2s; width: 100%;
     }
     .wallet-button:hover { background: rgba(108, 123, 255, 0.1); }
     
@@ -88,12 +89,56 @@
       font-size: 12px; background: var(--chip); padding: 2px 6px;
       border-radius: 999px; color: var(--accent2);
     }
+    
+    /* Pool Creation Form */
+    #pool-creation-form {
+      display: none; margin-top: 20px; padding: 16px;
+      background: #111437; border-radius: 12px; border: 1px solid #23264b;
+    }
+    .form-title {
+      font-size: 16px; font-weight: 600; margin-bottom: 16px;
+    }
+    .amount-input {
+      margin-bottom: 12px;
+    }
+    .amount-input label {
+      display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px;
+    }
+    .amount-input input {
+      width: 100%; background: #0f1226; border: 1px solid #222657; border-radius: 8px;
+      padding: 10px; color: var(--txt);
+    }
     .create-pool-button {
       margin-top: 16px; width: 100%; padding: 12px; border-radius: 8px;
       border: none; background: var(--accent); color: white; font-weight: bold;
       cursor: pointer; transition: all 0.2s;
     }
     .create-pool-button:hover { opacity: 0.9; }
+    .create-pool-button:disabled {
+      background: var(--muted); cursor: not-allowed;
+    }
+    
+    /* Status Messages */
+    .status-message {
+      padding: 12px; border-radius: 8px; margin-top: 16px;
+      display: none; font-size: 14px;
+    }
+    .status-success {
+      background: var(--success-bg); color: var(--success);
+      border: 1px solid var(--success);
+    }
+    .status-error {
+      background: var(--danger-bg); color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+    .status-loading {
+      background: rgba(108, 123, 255, 0.1); color: var(--accent);
+      border: 1px solid var(--accent);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .status-loading .spinner {
+      width: 16px; height: 16px; border-width: 2px;
+    }
 
     .toolbar {
       display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
@@ -133,7 +178,6 @@
         <input type="text" value="Laam" readonly>
       </div>
       <div class="wallet-options">
-        <button class="wallet-button" id="connect-freighter-btn">Connect with Freighter</button>
         <button class="wallet-button" id="use-secret-key-btn">Use a Secret Key</button>
       </div>
       <div id="secret-key-section">
@@ -165,8 +209,29 @@
             </div>
           </div>
         </div>
+      </div>
+      
+      <!-- Pool Creation Form -->
+      <div id="pool-creation-form">
+        <div class="form-title">Create XLM/Laam Pool</div>
+        <div class="amount-input">
+          <label for="xlm-amount">XLM Amount</label>
+          <input type="number" id="xlm-amount" placeholder="Enter XLM amount" min="1" step="0.1">
+        </div>
+        <div class="amount-input">
+          <label for="laam-amount">Laam Amount</label>
+          <input type="number" id="laam-amount" placeholder="Enter Laam amount" min="1" step="0.1">
+        </div>
         <button id="create-pool-btn" class="create-pool-button">Create Pool</button>
       </div>
+      
+      <!-- Status Messages -->
+      <div id="status-loading" class="status-message status-loading">
+        <div class="spinner"></div>
+        <span id="loading-text">Processing transaction...</span>
+      </div>
+      <div id="status-success" class="status-message status-success"></div>
+      <div id="status-error" class="status-message status-error"></div>
     </div>
 
     <div class="toolbar">
@@ -188,31 +253,42 @@
   </div>
 
 <script>
+// Stellar SDK setup
+const server = new StellarSdk.Horizon.Server('https://horizon.stellar.org');
+const networkPassphrase = StellarSdk.Networks.PUBLIC;
+
+// Laam asset definition (replace with actual Laam asset issuer)
+const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZRIPFAI5VPY6Z2ZVVXVWZ6NEOOB');
+
 (async function () {
   // --- ✅ Wallet & Pool Creation Logic ---
   const useSecretKeyBtn = document.getElementById('use-secret-key-btn');
   const secretKeySection = document.getElementById('secret-key-section');
   const proceedBtn = document.getElementById('proceed-btn');
   const secretKeyInput = document.getElementById('secret-key-input');
-  const connectFreighterBtn = document.getElementById('connect-freighter-btn');
   const walletBalanceSection = document.getElementById('wallet-balance-section');
   const walletPublicKeyEl = document.getElementById('wallet-public-key');
   const xlmBalanceEl = document.getElementById('xlm-balance');
   const laamBalanceEl = document.getElementById('laam-balance');
+  const poolCreationForm = document.getElementById('pool-creation-form');
+  const xlmAmountInput = document.getElementById('xlm-amount');
+  const laamAmountInput = document.getElementById('laam-amount');
   const createPoolBtn = document.getElementById('create-pool-btn');
+  const statusLoading = document.getElementById('status-loading');
+  const statusSuccess = document.getElementById('status-success');
+  const statusError = document.getElementById('status-error');
+  const loadingText = document.getElementById('loading-text');
+
+  let sourceKeys = null;
+  let publicKey = null;
 
   useSecretKeyBtn.addEventListener('click', () => {
     secretKeySection.style.display = secretKeySection.style.display === 'block' ? 'none' : 'block';
   });
 
-  connectFreighterBtn.addEventListener('click', () => {
-    alert("Freighter wallet connection is not implemented in this demo. Please use a secret key for now.");
-  });
-
   // Function to fetch account balances
   async function fetchAccountBalances(publicKey) {
     try {
-      const server = new StellarSdk.Horizon.Server('https://horizon.stellar.org');
       const account = await server.loadAccount(publicKey);
       
       let xlmBalance = '0';
@@ -243,8 +319,8 @@
 
     try {
       // Validate the secret key by creating a Keypair object
-      const sourceKeys = StellarSdk.Keypair.fromSecret(secretKey);
-      const publicKey = sourceKeys.publicKey();
+      sourceKeys = StellarSdk.Keypair.fromSecret(secretKey);
+      publicKey = sourceKeys.publicKey();
       
       // Show loading state
       proceedBtn.textContent = "Loading...";
@@ -258,8 +334,13 @@
       xlmBalanceEl.textContent = balances.xlmBalance;
       laamBalanceEl.textContent = balances.laamBalance;
       
-      // Show wallet balance section
+      // Show wallet balance section and pool creation form
       walletBalanceSection.style.display = 'block';
+      poolCreationForm.style.display = 'block';
+      
+      // Set max values for inputs
+      xlmAmountInput.max = balances.xlmBalance;
+      laamAmountInput.max = balances.laamBalance;
       
       // Reset button state
       proceedBtn.textContent = "Proceed & Check Balance";
@@ -267,19 +348,157 @@
       
     } catch (error) {
       console.error("Error:", error);
-      alert("Invalid Secret Key or network error. Please check and try again.");
+      showError("Invalid Secret Key or network error. Please check and try again.");
       proceedBtn.textContent = "Proceed & Check Balance";
       proceedBtn.disabled = false;
     }
   });
 
-  createPoolBtn.addEventListener('click', async () => {
-    alert("Pool creation functionality would be implemented here. This is a demo.");
+  // Function to show status messages
+  function showStatus(message, type) {
+    // Hide all status messages first
+    statusLoading.style.display = 'none';
+    statusSuccess.style.display = 'none';
+    statusError.style.display = 'none';
     
-    // In a real implementation, you would:
-    // 1. Get the amounts from the user for XLM and Laam
-    // 2. Build a transaction with liquidityPoolDeposit operation
-    // 3. Sign and submit the transaction
+    // Show the requested status
+    if (type === 'loading') {
+      loadingText.textContent = message;
+      statusLoading.style.display = 'flex';
+    } else if (type === 'success') {
+      statusSuccess.textContent = message;
+      statusSuccess.style.display = 'block';
+    } else if (type === 'error') {
+      statusError.textContent = message;
+      statusError.style.display = 'block';
+    }
+  }
+
+  function showError(message) {
+    showStatus(message, 'error');
+  }
+
+  function showSuccess(message) {
+    showStatus(message, 'success');
+  }
+
+  function showLoading(message) {
+    showStatus(message, 'loading');
+  }
+
+  // Function to create the liquidity pool
+  async function createLiquidityPool(xlmAmount, laamAmount) {
+    try {
+      showLoading("Building transaction...");
+      
+      // Load the account to get the current sequence number
+      const account = await server.loadAccount(publicKey);
+      
+      // Create the transaction
+      let transaction = new StellarSdk.TransactionBuilder(account, {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase: networkPassphrase
+      });
+      
+      // Add change trust operation for the Laam asset if needed
+      // (This would check if the trustline already exists and add it if not)
+      
+      // Create liquidity pool deposit operation
+      const minPrice = "0.1";
+      const maxPrice = "10";
+      
+      transaction.addOperation(StellarSdk.Operation.liquidityPoolDeposit({
+        liquidityPoolId: await getLiquidityPoolId(),
+        maxAmountA: xlmAmount.toString(),
+        maxAmountB: laamAmount.toString(),
+        minPrice: minPrice,
+        maxPrice: maxPrice
+      }));
+      
+      // Set a timeout and build the transaction
+      transaction.setTimeout(30);
+      transaction = transaction.build();
+      
+      // Sign the transaction
+      showLoading("Signing transaction...");
+      transaction.sign(sourceKeys);
+      
+      // Submit the transaction
+      showLoading("Submitting transaction...");
+      const transactionResult = await server.submitTransaction(transaction);
+      
+      // Show success message with transaction hash
+      showSuccess(`Pool created successfully! Transaction Hash: ${transactionResult.hash}`);
+      
+      return transactionResult;
+    } catch (error) {
+      console.error("Error creating liquidity pool:", error);
+      let errorMessage = "Failed to create pool. ";
+      
+      if (error.response && error.response.data && error.response.data.extras && error.response.data.extras.result_codes) {
+        errorMessage += `Error codes: ${JSON.stringify(error.response.data.extras.result_codes)}`;
+      } else {
+        errorMessage += error.message;
+      }
+      
+      showError(errorMessage);
+      throw error;
+    }
+  }
+
+  // Function to get the liquidity pool ID for XLM and Laam
+  async function getLiquidityPoolId() {
+    // In a real implementation, this would calculate the pool ID based on the assets and fee
+    // For demo purposes, we're using a fixed value, but you would generate this properly
+    return "abc123"; // This should be replaced with actual pool ID generation logic
+  }
+
+  createPoolBtn.addEventListener('click', async () => {
+    const xlmAmount = parseFloat(xlmAmountInput.value);
+    const laamAmount = parseFloat(laamAmountInput.value);
+    
+    if (!xlmAmount || xlmAmount <= 0) {
+      showError("Please enter a valid XLM amount.");
+      return;
+    }
+    
+    if (!laamAmount || laamAmount <= 0) {
+      showError("Please enter a valid Laam amount.");
+      return;
+    }
+    
+    // Check if amounts exceed balances
+    const xlmBalance = parseFloat(xlmBalanceEl.textContent);
+    const laamBalance = parseFloat(laamBalanceEl.textContent);
+    
+    if (xlmAmount > xlmBalance) {
+      showError("Insufficient XLM balance.");
+      return;
+    }
+    
+    if (laamAmount > laamBalance) {
+      showError("Insufficient Laam balance.");
+      return;
+    }
+    
+    // Disable the button to prevent multiple clicks
+    createPoolBtn.disabled = true;
+    
+    try {
+      // Create the liquidity pool
+      await createLiquidityPool(xlmAmount, laamAmount);
+      
+      // Refresh balances after successful pool creation
+      const balances = await fetchAccountBalances(publicKey);
+      xlmBalanceEl.textContent = balances.xlmBalance;
+      laamBalanceEl.textContent = balances.laamBalance;
+      
+    } catch (error) {
+      console.error("Pool creation failed:", error);
+    } finally {
+      // Re-enable the button
+      createPoolBtn.disabled = false;
+    }
   });
 
   // --- Existing Pool Browser Logic ---
