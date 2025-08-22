@@ -258,6 +258,7 @@ const server = new StellarSdk.Horizon.Server('https://horizon.stellar.org');
 const networkPassphrase = StellarSdk.Networks.PUBLIC;
 
 // Laam asset definition (replace with actual Laam asset issuer)
+// For this demo, we'll use a placeholder
 const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZRIPFAI5VPY6Z2ZVVXVWZ6NEOOB');
 
 (async function () {
@@ -400,19 +401,21 @@ const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZR
         networkPassphrase: networkPassphrase
       });
       
-      // Add change trust operation for the Laam asset if needed
-      // (This would check if the trustline already exists and add it if not)
+      // First, we need to create a change trust operation for the Laam asset
+      // This establishes a trustline to the asset
+      transaction.addOperation(StellarSdk.Operation.changeTrust({
+        asset: LAAM_ASSET,
+        limit: laamAmount.toString()
+      }));
       
       // Create liquidity pool deposit operation
-      const minPrice = "0.1";
-      const maxPrice = "10";
-      
+      // For a new pool, we need to use liquidityPoolDeposit with the correct parameters
       transaction.addOperation(StellarSdk.Operation.liquidityPoolDeposit({
         liquidityPoolId: await getLiquidityPoolId(),
         maxAmountA: xlmAmount.toString(),
         maxAmountB: laamAmount.toString(),
-        minPrice: minPrice,
-        maxPrice: maxPrice
+        minPrice: "0.1",
+        maxPrice: "10"
       }));
       
       // Set a timeout and build the transaction
@@ -448,9 +451,24 @@ const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZR
 
   // Function to get the liquidity pool ID for XLM and Laam
   async function getLiquidityPoolId() {
-    // In a real implementation, this would calculate the pool ID based on the assets and fee
-    // For demo purposes, we're using a fixed value, but you would generate this properly
-    return "abc123"; // This should be replaced with actual pool ID generation logic
+    // Generate the liquidity pool ID based on the assets, fee, and type
+    // For XLM and Laam with a 0.3% fee
+    const fee = 30; // 0.3% in basis points
+    const assetA = new StellarSdk.Asset.native();
+    const assetB = LAAM_ASSET;
+    
+    // Sort assets in lexicographical order
+    const assets = [assetA, assetB].sort(StellarSdk.Asset.compare);
+    
+    // Generate the liquidity pool ID
+    const liquidityPoolParameters = new StellarSdk.LiquidityPoolParameters(
+      StellarSdk.LiquidityPoolFeeV18,
+      assets[0],
+      assets[1],
+      fee
+    );
+    
+    return liquidityPoolParameters.getLiquidityPoolId();
   }
 
   createPoolBtn.addEventListener('click', async () => {
@@ -501,7 +519,76 @@ const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZR
     }
   });
 
-  
+  // --- Existing Pool Browser Logic ---
+  const API = "https://horizon.stellar.org/liquidity_pools?order=desc&limit=200";
+  const rowsEl = document.getElementById('rows');
+  const qEl = document.getElementById('q');
+  const sortEl = document.getElementById('sort');
+  const refreshBtn = document.getElementById('refresh');
+  const loadingEl = document.getElementById('loading');
+
+  let POOLS = [];
+
+  function assetLabel(r) {
+    if (!r) return "?";
+    if (r.asset_type === "native") return "XLM";
+    return r.asset_code || "?";
+  }
+
+  function fmt(n, max=2){
+    return new Intl.NumberFormat(undefined, {maximumFractionDigits:max}).format(parseFloat(n||0));
+  }
+
+  function render(list){
+    rowsEl.innerHTML = "";
+    for (const p of list){
+      const a = assetLabel(p.reserves?.[0]);
+      const b = assetLabel(p.reserves?.[1]);
+      const aAmt = p.reserves?.[0]?.amount ?? 0;
+      const bAmt = p.reserves?.[1]?.amount ?? 0;
+      const tr = document.createElement('tr');
+      const poolUrl = `https://stellar.expert/explorer/public/liquidity-pool/${p.id}`;
+      tr.innerHTML = `
+        <td><div class="pair"><span class="chip">${a}</span> / <span class="chip">${b}</span></div></td>
+        <td><div>${fmt(aAmt)} <span class="muted">${a}</span></div><div>${fmt(bAmt)} <span class="muted">${b}</span></div></td>
+        <td>${p.fee_bp} bp</td>
+        <td>${fmt(p.total_shares)}</td>
+        <td><a class="link" href="${poolUrl}" target="_blank" rel="noopener">View</a></td>
+      `;
+      rowsEl.appendChild(tr);
+    }
+  }
+
+  function calcLiquidity(p) { return parseFloat(p.reserves?.[0]?.amount || 0) + parseFloat(p.reserves?.[1]?.amount || 0); }
+
+  function applyFilters(){
+    const q = (qEl.value || "").trim().toUpperCase();
+    let list = [...POOLS];
+    if (q) {
+      list = list.filter(p => (assetLabel(p.reserves?.[0]) + assetLabel(p.reserves?.[1])).toUpperCase().includes(q));
+    }
+    const s = sortEl.value;
+    if (s === '-liquidity') list.sort((x,y) => calcLiquidity(y) - calcLiquidity(x));
+    if (s === 'liquidity') list.sort((x,y) => calcLiquidity(x) - calcLiquidity(y));
+    render(list);
+  }
+
+  async function fetchAll(){
+    loadingEl.style.display = "block";
+    let url = API;
+    const all = [];
+    try {
+      for (let i=0; i<5 && url; i++){
+        const res = await fetch(url);
+        const data = await res.json();
+        all.push(...data._embedded.records);
+        url = data._links?.next?.href || null;
+      }
+      POOLS = all;
+    } catch (e) { console.error(e); }
+    loadingEl.style.display = "none";
+    applyFilters();
+  }
 
   qEl.addEventListener('input', applyFilters);
   sortEl.addEventListener('change', applyFilters);
