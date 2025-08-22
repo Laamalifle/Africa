@@ -5,142 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Laam Pools — Stellar AMM Explorer</title>
   <meta name="description" content="Lightweight Stellar AMM pools explorer. Browse, sort, filter, and create liquidity pools." />
+  <!-- ✅ Stellar SDK Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.2.1/stellar-sdk.min.js"></script>
 
   <style>
     :root {
-      --bg: #0f1226;
-      --card: #181b37;
-      --muted: #9aa3b2;
-      --txt: #e8ebf4;
-      --accent: #6c7bff;
-      --accent2: #29d3c6;
-      --chip: #22274b;
-      --ring: rgba(108, 123, 255, .35);
+      --bg: #0f1226; --card: #181b37; --muted: #9aa3b2; --txt: #e8ebf4;
+      --accent: #6c7bff; --accent2: #29d3c6; --chip: #22274b; --ring: rgba(108, 123, 255, .35);
+      --danger: #ff4d4d; --danger-bg: rgba(255, 77, 77, 0.1);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       background: radial-gradient(1200px 800px at 20% -10%, #1e2250 0%, transparent 60%), var(--bg);
-      color: var(--txt);
-      min-height: 100vh; display: flex; flex-direction: column;
+      color: var(--txt); min-height: 100vh; display: flex; flex-direction: column;
     }
-    header {
-      padding: 28px 16px 8px; text-align: center;
-    }
+    header { padding: 28px 16px 8px; text-align: center; }
     .title { font-weight: 800; letter-spacing: .5px; font-size: clamp(22px, 3vw, 32px); }
     .subtitle { color: var(--muted); margin-top: 6px; font-size: 14px; }
     .shell { width: min(1100px, 95%); margin: 18px auto 40px; }
     
-    /* ✅ Styles for Create Pool Section */
+    /* ✅ Styles for Create Pool & Wallet Section */
     .create-pool-section {
-      background: var(--card);
-      border: 1px solid #23264b;
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.2);
+      background: var(--card); border: 1px solid #23264b; border-radius: 16px;
+      padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(0,0,0,.2);
     }
-    .create-pool-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      text-align: center;
-    }
-    .pool-inputs {
-      display: flex;
-      gap: 15px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+    .create-pool-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; text-align: center; }
+    .pool-inputs { display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap; }
     .pool-inputs input {
-      background: #111437;
-      border: 1px solid #222657;
-      border-radius: 12px;
-      padding: 12px;
-      color: var(--txt);
-      font-size: 16px;
-      width: 150px;
-      text-align: center;
+      background: #111437; border: 1px solid #222657; border-radius: 12px; padding: 12px;
+      color: var(--txt); font-size: 16px; width: 150px; text-align: center;
     }
-    .pool-inputs span {
-      font-size: 24px;
-      font-weight: bold;
-      color: var(--muted);
+    .pool-inputs span { font-size: 24px; font-weight: bold; color: var(--muted); }
+    
+    .wallet-options { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .wallet-button {
+      padding: 14px; border-radius: 12px; border: 1px solid var(--accent);
+      background: transparent; color: var(--accent); font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
     }
-    .create-pool-button {
-      display: block;
-      width: 100%;
-      margin-top: 20px;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
-      background: var(--accent);
-      color: white;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s;
+    .wallet-button:hover { background: rgba(108, 123, 255, 0.1); }
+    
+    #secret-key-section { display: none; margin-top: 15px; padding: 15px; border-radius: 12px; background: #111437; }
+    #secret-key-input {
+      width: 100%; background: #0f1226; border: 1px solid #222657; border-radius: 8px;
+      padding: 12px; color: var(--txt); margin-bottom: 10px;
     }
-    .create-pool-button:hover {
-      background: #5a68e8;
+    .secret-key-warning {
+      font-size: 12px; color: var(--danger); background: var(--danger-bg);
+      padding: 8px; border-radius: 8px; text-align: center; margin-bottom: 10px;
+    }
+    .proceed-button {
+      width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--accent2);
+      color: #0f1226; font-weight: bold; cursor: pointer;
     }
 
     .toolbar {
       display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
       background: var(--card); padding: 14px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.25);
-      position: sticky; top: 12px; z-index: 5; border: 1px solid #23264b;
-      backdrop-filter: blur(6px);
+      position: sticky; top: 12px; z-index: 5; border: 1px solid #23264b; backdrop-filter: blur(6px);
     }
-    .search {
-      display: flex; align-items: center; gap: 10px; background: #111437; padding: 10px 12px; border-radius: 12px; border: 1px solid #222657;
-      box-shadow: 0 0 0 0 var(--ring);
-    }
-    .search:focus-within { box-shadow: 0 0 0 4px var(--ring); }
-    .search input {
-      outline: none; border: 0; background: transparent; color: var(--txt); width: 100%;
-    }
-    select, .refresh-button {
-      background: #111437; color: var(--txt); border: 1px solid #222657; border-radius: 12px; padding: 10px 12px;
-    }
+    .search { display: flex; align-items: center; gap: 10px; background: #111437; padding: 10px 12px; border-radius: 12px; border: 1px solid #222657; }
+    .search input { outline: none; border: 0; background: transparent; color: var(--txt); width: 100%; }
+    select, .refresh-button { background: #111437; color: var(--txt); border: 1px solid #222657; border-radius: 12px; padding: 10px 12px; }
     .refresh-button { cursor: pointer; }
-    .table {
-      margin-top: 14px; background: var(--card); border-radius: 16px; overflow: hidden; border: 1px solid #23264b;
-    }
+    .table { margin-top: 14px; background: var(--card); border-radius: 16px; overflow: hidden; border: 1px solid #23264b; }
     table { width: 100%; border-collapse: collapse; }
-    thead th {
-      text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
-      background: #15183a; padding: 12px 14px; border-bottom: 1px solid #23264b; position: sticky; top: 84px; z-index: 4;
-    }
+    thead th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: #15183a; padding: 12px 14px; border-bottom: 1px solid #23264b; position: sticky; top: 84px; z-index: 4; }
     tbody td { padding: 14px; border-bottom: 1px solid #23264b; }
-    tbody tr:hover { background: rgba(255,255,255,0.03); }
     .pair { display: flex; align-items: center; gap: 10px; font-weight: 650; }
     .chip { background: var(--chip); color: #c6cff9; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2b2f5c; }
     .muted { color: var(--muted); font-size: 12px; }
-    .tag { font-size: 11px; padding: 2px 6px; border-radius: 999px; border: 1px solid #2b2f5c; background: #14173a; color: #b6c0ff; }
     .foot { color: var(--muted); text-align: center; font-size: 12px; padding: 24px 0 40px; }
-    .pill {
-      display:inline-flex; gap:8px; align-items:center; padding:8px 12px; border-radius:999px; background:#12163a; border:1px solid #2b2f5c; font-size:12px;
-    }
-    .link {
-      color: var(--accent2); text-decoration: none;
-    }
-    .link:hover { text-decoration: underline; }
-    .spinner {
-      margin: 40px auto; width: 44px; aspect-ratio: 1; border-radius: 50%;
-      border: 4px solid #2b2f5c; border-top-color: var(--accent); animation: spin 1s linear infinite;
-    }
+    .link { color: var(--accent2); text-decoration: none; }
+    .spinner { margin: 40px auto; width: 44px; aspect-ratio: 1; border-radius: 50%; border: 4px solid #2b2f5c; border-top-color: var(--accent); animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(1turn); } }
-    @media (max-width: 720px){
-      .toolbar { grid-template-columns: 1fr; position: static; }
-      thead { display:none; }
-      tbody td { display:block; border:0; padding:8px 14px; }
-      tbody tr { border-bottom: 1px solid #23264b; padding: 8px 0; }
-      .row {
-        display:grid; grid-template-columns: 1fr; gap:6px;
-      }
-      .cell-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
-    }
   </style>
 </head>
 <body>
@@ -150,87 +89,108 @@
   </header>
 
   <div class="shell">
-    <!-- ✅ CREATE POOL SECTION ADDED -->
+    <!-- ✅ CREATE POOL & WALLET CONNECTION SECTION -->
     <div class="create-pool-section">
-      <div class="create-pool-title">Create a New Liquidity Pool</div>
+      <div class="create-pool-title">Create XLM / Laam Pool</div>
       <div class="pool-inputs">
         <input type="text" value="XLM" readonly>
         <span>/</span>
         <input type="text" value="Laam" readonly>
       </div>
-      <button id="create-pool-btn" class="create-pool-button">Create Pool</button>
+      <div class="wallet-options">
+        <button class="wallet-button" id="connect-freighter-btn">Connect with Freighter</button>
+        <button class="wallet-button" id="use-secret-key-btn">Use a Secret Key</button>
+      </div>
+      <div id="secret-key-section">
+        <div class="secret-key-warning">
+          <strong>Warning:</strong> Never share your secret key. We will not save it, but pasting it here is at your own risk.
+        </div>
+        <input type="password" id="secret-key-input" placeholder="Enter your Secret Key (starts with 'S')">
+        <button id="proceed-btn" class="proceed-button">Proceed & Create Pool</button>
+      </div>
     </div>
 
     <div class="toolbar">
-      <div class="search">
-        🔎
-        <input id="q" placeholder="Filter by asset code (e.g., XLM, USDC, Laam)..." />
-      </div>
+      <div class="search">🔎<input id="q" placeholder="Filter by asset code (e.g., XLM, USDC, Laam)..." /></div>
       <select id="sort">
         <option value="-liquidity">Sort: Reserves (desc)</option>
         <option value="liquidity">Sort: Reserves (asc)</option>
-        <option value="-shares">Sort: Total shares (desc)</option>
-        <option value="shares">Sort: Total shares (asc)</option>
-        <option value="-fee">Sort: Fee (desc)</option>
-        <option value="fee">Sort: Fee (asc)</option>
       </select>
       <button id="refresh" class="refresh-button">↻ Refresh</button>
     </div>
 
-    <div id="status" class="pill" style="margin-top:12px; display:none;">Loading…</div>
-
     <div class="table">
       <div id="loading" class="spinner"></div>
       <table>
-        <thead>
-          <tr>
-            <th style="min-width:220px">Pair</th>
-            <th>Reserves</th>
-            <th>Fee (bp)</th>
-            <th>Total Shares</th>
-            <th>Pool</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Pair</th><th>Reserves</th><th>Fee</th><th>Shares</th><th>Pool</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
-    </div>
-
-    <div class="foot">
-      Data live from <a class="link" href="https://horizon.stellar.org" target="_blank" rel="noopener">Horizon Public Network</a>.
-      Links open on StellarExpert.
     </div>
   </div>
 
 <script>
 (async function () {
+  // --- ✅ Wallet & Pool Creation Logic ---
+  const useSecretKeyBtn = document.getElementById('use-secret-key-btn');
+  const secretKeySection = document.getElementById('secret-key-section');
+  const proceedBtn = document.getElementById('proceed-btn');
+  const secretKeyInput = document.getElementById('secret-key-input');
+  const connectFreighterBtn = document.getElementById('connect-freighter-btn');
+
+  useSecretKeyBtn.addEventListener('click', () => {
+    secretKeySection.style.display = secretKeySection.style.display === 'block' ? 'none' : 'block';
+  });
+
+  connectFreighterBtn.addEventListener('click', () => {
+    alert("Freighter wallet connection is not implemented in this demo. Please use a secret key for now.");
+  });
+
+  proceedBtn.addEventListener('click', async () => {
+    const secretKey = secretKeyInput.value.trim();
+    if (!secretKey) {
+      alert("Please enter your secret key.");
+      return;
+    }
+
+    try {
+      // Validate the secret key by creating a Keypair object
+      const sourceKeys = StellarSdk.Keypair.fromSecret(secretKey);
+      const publicKey = sourceKeys.publicKey();
+      
+      alert(`Secret Key is valid!\nPublic Key: ${publicKey}\n\nNext step would be to build and sign the transaction to create the XLM/Laam pool. This is a demo.`);
+      
+      // --- REAL IMPLEMENTATION WOULD GO HERE ---
+      // 1. Get amounts from user for XLM and Laam.
+      // 2. Load the account data from Horizon.
+      // 3. Build a `Transaction` with a `liquidityPoolDeposit` operation.
+      // 4. Sign the transaction with `sourceKeys`.
+      // 5. Submit the transaction to the network.
+      // -----------------------------------------
+
+    } catch (error) {
+      console.error("Invalid Secret Key:", error);
+      alert("Invalid Secret Key. Please check and try again. It should start with an 'S'.");
+    }
+  });
+
+  // --- Existing Pool Browser Logic ---
   const API = "https://horizon.stellar.org/liquidity_pools?order=desc&limit=200";
   const rowsEl = document.getElementById('rows');
   const qEl = document.getElementById('q');
   const sortEl = document.getElementById('sort');
   const refreshBtn = document.getElementById('refresh');
   const loadingEl = document.getElementById('loading');
-  const statusEl = document.getElementById('status');
-  const createPoolBtn = document.getElementById('create-pool-btn'); // ✅ Get the new button
 
   let POOLS = [];
 
-  // ✅ Event listener for the create pool button
-  createPoolBtn.addEventListener('click', () => {
-    alert("Please connect your wallet or enter your secret key to continue.");
-    // In a real app, you would trigger a wallet connection modal here.
-  });
-
   function assetLabel(r) {
     if (!r) return "?";
-    if (r.asset === "native") return "XLM";
-    const [code] = r.asset.split(":");
-    return code || r.asset;
+    if (r.asset_type === "native") return "XLM";
+    return r.asset_code || "?";
   }
 
   function fmt(n, max=2){
-    const num = typeof n === "number" ? n : parseFloat(n || 0);
-    if (!isFinite(num)) return "0";
-    return new Intl.NumberFormat(undefined, {maximumFractionDigits:max}).format(num);
+    return new Intl.NumberFormat(undefined, {maximumFractionDigits:max}).format(parseFloat(n||0));
   }
 
   function render(list){
@@ -241,98 +201,55 @@
       const aAmt = p.reserves?.[0]?.amount ?? 0;
       const bAmt = p.reserves?.[1]?.amount ?? 0;
       const tr = document.createElement('tr');
-      tr.className = "row";
-
-      const poolUrl = `https://stellar.expert/explorer/public/amm/pool/${p.id}`;
+      const poolUrl = `https://stellar.expert/explorer/public/liquidity-pool/${p.id}`;
       tr.innerHTML = `
-        <td>
-          <div class="pair">
-            <span class="chip">${a}</span>
-            <span class="chip">/</span>
-            <span class="chip">${b}</span>
-          </div>
-          <div class="muted" style="margin-top:6px">${p.id.slice(0,6)}…${p.id.slice(-6)}</div>
-        </td>
-        <td>
-          <div>${fmt(aAmt, 2)} <span class="muted">${a}</span></div>
-          <div>${fmt(bAmt, 2)} <span class="muted">${b}</span></div>
-        </td>
-        <td><span class="tag">${p.fee_bp ?? "—"}</span></td>
-        <td>${fmt(p.total_shares, 2)}</td>
+        <td><div class="pair"><span class="chip">${a}</span> / <span class="chip">${b}</span></div></td>
+        <td><div>${fmt(aAmt)} <span class="muted">${a}</span></div><div>${fmt(bAmt)} <span class="muted">${b}</span></div></td>
+        <td>${p.fee_bp} bp</td>
+        <td>${fmt(p.total_shares)}</td>
         <td><a class="link" href="${poolUrl}" target="_blank" rel="noopener">View</a></td>
       `;
       rowsEl.appendChild(tr);
     }
   }
 
-  function calcLiquidityNumber(p){
-    const aAmt = parseFloat(p.reserves?.[0]?.amount || 0);
-    const bAmt = parseFloat(p.reserves?.[1]?.amount || 0);
-    return (aAmt + bAmt);
-  }
+  function calcLiquidity(p) { return parseFloat(p.reserves?.[0]?.amount || 0) + parseFloat(p.reserves?.[1]?.amount || 0); }
 
   function applyFilters(){
     const q = (qEl.value || "").trim().toUpperCase();
     let list = [...POOLS];
-    if (q){
-      list = list.filter(p => {
-        const a = assetLabel(p.reserves?.[0]).toUpperCase();
-        const b = assetLabel(p.reserves?.[1]).toUpperCase();
-        return a.includes(q) || b.includes(q);
-      });
+    if (q) {
+      list = list.filter(p => (assetLabel(p.reserves?.[0]) + assetLabel(p.reserves?.[1])).toUpperCase().includes(q));
     }
     const s = sortEl.value;
-    switch(s){
-      case "-liquidity": list.sort((x,y)=>calcLiquidityNumber(y)-calcLiquidityNumber(x)); break;
-      case "liquidity": list.sort((x,y)=>calcLiquidityNumber(x)-calcLiquidityNumber(y)); break;
-      case "-shares": list.sort((x,y)=>parseFloat(y.total_shares||0)-parseFloat(x.total_shares||0)); break;
-      case "shares": list.sort((x,y)=>parseFloat(x.total_shares||0)-parseFloat(y.total_shares||0)); break;
-      case "-fee": list.sort((x,y)=>parseInt(y.fee_bp||0)-parseInt(x.fee_bp||0)); break;
-      case "fee": list.sort((x,y)=>parseInt(x.fee_bp||0)-parseInt(y.fee_bp||0)); break;
-    }
+    if (s === '-liquidity') list.sort((x,y) => calcLiquidity(y) - calcLiquidity(x));
+    if (s === 'liquidity') list.sort((x,y) => calcLiquidity(x) - calcLiquidity(y));
     render(list);
   }
 
   async function fetchAll(){
     loadingEl.style.display = "block";
-    statusEl.style.display = "inline-flex";
-    statusEl.textContent = "Loading pools…";
-
     let url = API;
     const all = [];
     try {
       for (let i=0; i<5 && url; i++){
-        const res = await fetch(url, {headers: {"Accept":"application/json"}});
+        const res = await fetch(url);
         const data = await res.json();
-        if (!data || !data._embedded) break;
         all.push(...data._embedded.records);
         url = data._links?.next?.href || null;
       }
-      POOLS = all.map(p => ({
-        id: p.id,
-        fee_bp: p.fee_bp,
-        total_shares: p.total_shares,
-        reserves: p.reserves
-      }));
-      statusEl.textContent = `Loaded ${POOLS.length} pools`;
-    } catch (e){
-      console.error(e);
-      statusEl.textContent = "Failed to load pools. Retrying later…";
-    } finally {
-      loadingEl.style.display = "none";
-      applyFilters();
-      setTimeout(()=> statusEl.style.display = "none", 2000);
-    }
+      POOLS = all;
+    } catch (e) { console.error(e); }
+    loadingEl.style.display = "none";
+    applyFilters();
   }
 
-  // events
-  qEl.addEventListener('input', () => applyFilters());
-  sortEl.addEventListener('change', () => applyFilters());
-  refreshBtn.addEventListener('click', () => fetchAll());
+  qEl.addEventListener('input', applyFilters);
+  sortEl.addEventListener('change', applyFilters);
+  refreshBtn.addEventListener('click', fetchAll);
 
-  // init
   fetchAll();
 })();
 </script>
 </body>
-</html>
+</html>                                                                           
