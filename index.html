@@ -3,17 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Laam Wallet Connect — Stellar Network</title>
-  <meta name="description" content="Securely connect to the Stellar network using your secret key to view your account data and balances." />
-  <!-- Stellar SDK Library -->
+  <title>Laam Pools — Stellar AMM Explorer</title>
+  <meta name="description" content="Lightweight Stellar AMM pools explorer. Browse, sort, filter, and create liquidity pools." />
+  <!-- ✅ Stellar SDK Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.2.1/stellar-sdk.min.js"></script>
 
   <style>
     :root {
       --bg: #0f1226; --card: #181b37; --muted: #9aa3b2; --txt: #e8ebf4;
-      --accent: #6c7bff; --accent2: #29d3c6; --chip: #22274b;
+      --accent: #6c7bff; --accent2: #29d3c6; --chip: #22274b; --ring: rgba(108, 123, 255, .35);
       --danger: #ff4d4d; --danger-bg: rgba(255, 77, 77, 0.1);
-      --success: #29d3c6; --success-bg: rgba(41, 211, 198, 0.1);
     }
     * { box-sizing: border-box; }
     body {
@@ -24,157 +23,341 @@
     header { padding: 28px 16px 8px; text-align: center; }
     .title { font-weight: 800; letter-spacing: .5px; font-size: clamp(22px, 3vw, 32px); }
     .subtitle { color: var(--muted); margin-top: 6px; font-size: 14px; }
-    .shell { width: min(600px, 95%); margin: 18px auto 40px; }
+    .shell { width: min(1100px, 95%); margin: 18px auto 40px; }
     
-    /* Styles for Wallet Connect Section */
-    .wallet-connect-section {
+    /* ✅ Styles for Create Pool & Wallet Section */
+    .create-pool-section {
       background: var(--card); border: 1px solid #23264b; border-radius: 16px;
-      padding: 25px; box-shadow: 0 8px 30px rgba(0,0,0,.2);
+      padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(0,0,0,.2);
+    }
+    .create-pool-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; text-align: center; }
+    .pool-inputs { display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .pool-inputs input {
+      background: #111437; border: 1px solid #222657; border-radius: 12px; padding: 12px;
+      color: var(--txt); font-size: 16px; width: 150px; text-align: center;
+    }
+    .pool-inputs span { font-size: 24px; font-weight: bold; color: var(--muted); }
+    
+    .wallet-options { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .wallet-button {
+      padding: 14px; border-radius: 12px; border: 1px solid var(--accent);
+      background: transparent; color: var(--accent); font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .wallet-button:hover { background: rgba(108, 123, 255, 0.1); }
+    
+    #secret-key-section { display: none; margin-top: 15px; padding: 15px; border-radius: 12px; background: #111437; }
+    #secret-key-input {
+      width: 100%; background: #0f1226; border: 1px solid #222657; border-radius: 8px;
+      padding: 12px; color: var(--txt); margin-bottom: 10px;
     }
     .secret-key-warning {
       font-size: 12px; color: var(--danger); background: var(--danger-bg);
-      padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px;
+      padding: 8px; border-radius: 8px; text-align: center; margin-bottom: 10px;
     }
-    #secret-key-input {
-      width: 100%; background: #111437; border: 1px solid #222657; border-radius: 12px;
-      padding: 14px; color: var(--txt); margin-bottom: 15px; font-size: 16px;
+    .proceed-button {
+      width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--accent2);
+      color: #0f1226; font-weight: bold; cursor: pointer;
     }
-    .connect-button {
-      width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent);
-      color: white; font-weight: bold; cursor: pointer; font-size: 16px;
-      transition: background-color 0.2s;
-    }
-    .connect-button:disabled { background: #22274b; color: var(--muted); cursor: not-allowed; }
-    .connect-button:hover:not(:disabled) { background: #5a68e8; }
     
-    #status-message {
-        margin-top: 15px; padding: 12px; border-radius: 8px; text-align: center; display: none;
-        font-size: 14px; word-break: break-all;
+    /* ✅ Wallet Balance Display */
+    #wallet-balance-section { 
+      display: none; margin-top: 20px; padding: 16px; 
+      background: #111437; border-radius: 12px; border: 1px solid #23264b;
     }
-    #status-message.success { background: var(--success-bg); color: var(--success); }
-    #status-message.error { background: var(--danger-bg); color: var(--danger); }
+    .wallet-balance-title { 
+      font-size: 16px; font-weight: 600; margin-bottom: 12px; 
+      display: flex; align-items: center; gap: 8px;
+    }
+    .wallet-balance-title span { color: var(--accent2); }
+    .balance-grid { 
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .balance-item {
+      background: #0f1226; padding: 12px; border-radius: 8px;
+      border: 1px solid #222657;
+    }
+    .balance-label { 
+      font-size: 12px; color: var(--muted); margin-bottom: 4px;
+    }
+    .balance-amount { 
+      font-size: 18px; font-weight: 600; 
+      display: flex; align-items: center; gap: 6px;
+    }
+    .balance-symbol {
+      font-size: 12px; background: var(--chip); padding: 2px 6px;
+      border-radius: 999px; color: var(--accent2);
+    }
+    .create-pool-button {
+      margin-top: 16px; width: 100%; padding: 12px; border-radius: 8px;
+      border: none; background: var(--accent); color: white; font-weight: bold;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .create-pool-button:hover { opacity: 0.9; }
 
-    /* Styles for Account Data Display */
-    #account-data-section {
-        display: none; margin-top: 20px;
+    .toolbar {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+      background: var(--card); padding: 14px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.25);
+      position: sticky; top: 12px; z-index: 5; border: 1px solid #23264b; backdrop-filter: blur(6px);
     }
-    .account-data-title {
-        font-size: 18px; font-weight: 600; margin-bottom: 15px;
-        border-bottom: 1px solid #23264b; padding-bottom: 10px;
-    }
-    .data-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 10px 0; border-bottom: 1px solid #111437;
-    }
-    .data-row:last-child { border-bottom: none; }
-    .data-label { color: var(--muted); }
-    .data-value { font-weight: 600; word-break: break-all; text-align: right; }
-    .data-value .asset-code { color: var(--accent2); }
+    .search { display: flex; align-items: center; gap: 10px; background: #111437; padding: 10px 12px; border-radius: 12px; border: 1px solid #222657; }
+    .search input { outline: none; border: 0; background: transparent; color: var(--txt); width: 100%; }
+    select, .refresh-button { background: #111437; color: var(--txt); border: 1px solid #222657; border-radius: 12px; padding: 10px 12px; }
+    .refresh-button { cursor: pointer; }
+    .table { margin-top: 14px; background: var(--card); border-radius: 16px; overflow: hidden; border: 1px solid #23264b; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: #15183a; padding: 12px 14px; border-bottom: 1px solid #23264b; position: sticky; top: 84px; z-index: 4; }
+    tbody td { padding: 14px; border-bottom: 1px solid #23264b; }
+    .pair { display: flex; align-items: center; gap: 10px; font-weight: 650; }
+    .chip { background: var(--chip); color: #c6cff9; padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2b2f5c; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .foot { color: var(--muted); text-align: center; font-size: 12px; padding: 24px 0 40px; }
+    .link { color: var(--accent2); text-decoration: none; }
+    .spinner { margin: 40px auto; width: 44px; aspect-ratio: 1; border-radius: 50%; border: 4px solid #2b2f5c; border-top-color: var(--accent); animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(1turn); } }
   </style>
 </head>
 <body>
   <header>
-    <div class="title">Laam Wallet Connect</div>
-    <div class="subtitle">Connect to the Stellar Network to view your account balances.</div>
+    <div class="title">Laam Pools — Stellar AMM</div>
+    <div class="subtitle">Browse, filter, and create Stellar liquidity pools.</div>
   </header>
 
   <div class="shell">
-    <div class="wallet-connect-section">
-      <div class="secret-key-warning">
-        <strong>DIGNIIN:</strong> Waligaa ha la wadaagin Secret Key-gaaga. Isticmaalkaagu waa mas'uuliyaddaada.
+    <!-- ✅ CREATE POOL & WALLET CONNECTION SECTION -->
+    <div class="create-pool-section">
+      <div class="create-pool-title">Create XLM / Laam Pool</div>
+      <div class="pool-inputs">
+        <input type="text" value="XLM" readonly>
+        <span>/</span>
+        <input type="text" value="Laam" readonly>
       </div>
-      <input type="password" id="secret-key-input" placeholder="Geli Secret Key-gaaga (wuxuu ku bilaabmaa 'S')">
-      <button id="connect-btn" class="connect-button">Connect Wallet</button>
-      <div id="status-message"></div>
+      <div class="wallet-options">
+        <button class="wallet-button" id="connect-freighter-btn">Connect with Freighter</button>
+        <button class="wallet-button" id="use-secret-key-btn">Use a Secret Key</button>
+      </div>
+      <div id="secret-key-section">
+        <div class="secret-key-warning">
+          <strong>Warning:</strong> Never share your secret key. We will not save it, but pasting it here is at your own risk.
+        </div>
+        <input type="password" id="secret-key-input" placeholder="Enter your Secret Key (starts with 'S')">
+        <button id="proceed-btn" class="proceed-button">Proceed & Check Balance</button>
+      </div>
+      
+      <!-- ✅ Wallet Balance Display Section -->
+      <div id="wallet-balance-section">
+        <div class="wallet-balance-title">
+          Wallet Balance <span id="wallet-public-key"></span>
+        </div>
+        <div class="balance-grid">
+          <div class="balance-item">
+            <div class="balance-label">Available Balance</div>
+            <div class="balance-amount">
+              <span id="xlm-balance">0</span>
+              <span class="balance-symbol">XLM</span>
+            </div>
+          </div>
+          <div class="balance-item">
+            <div class="balance-label">Available Balance</div>
+            <div class="balance-amount">
+              <span id="laam-balance">0</span>
+              <span class="balance-symbol">Laam</span>
+            </div>
+          </div>
+        </div>
+        <button id="create-pool-btn" class="create-pool-button">Create Pool</button>
+      </div>
     </div>
 
-    <div id="account-data-section">
-      <div class="account-data-title">Account Details</div>
-      <div id="account-info"></div>
+    <div class="toolbar">
+      <div class="search">🔎<input id="q" placeholder="Filter by asset code (e.g., XLM, USDC, Laam)..." /></div>
+      <select id="sort">
+        <option value="-liquidity">Sort: Reserves (desc)</option>
+        <option value="liquidity">Sort: Reserves (asc)</option>
+      </select>
+      <button id="refresh" class="refresh-button">↻ Refresh</button>
+    </div>
+
+    <div class="table">
+      <div id="loading" class="spinner"></div>
+      <table>
+        <thead><tr><th>Pair</th><th>Reserves</th><th>Fee</th><th>Shares</th><th>Pool</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
     </div>
   </div>
 
 <script>
 (async function () {
-  const connectBtn = document.getElementById('connect-btn');
+  // --- ✅ Wallet & Pool Creation Logic ---
+  const useSecretKeyBtn = document.getElementById('use-secret-key-btn');
+  const secretKeySection = document.getElementById('secret-key-section');
+  const proceedBtn = document.getElementById('proceed-btn');
   const secretKeyInput = document.getElementById('secret-key-input');
-  const statusMessageEl = document.getElementById('status-message');
-  const accountDataSection = document.getElementById('account-data-section');
-  const accountInfoEl = document.getElementById('account-info');
+  const connectFreighterBtn = document.getElementById('connect-freighter-btn');
+  const walletBalanceSection = document.getElementById('wallet-balance-section');
+  const walletPublicKeyEl = document.getElementById('wallet-public-key');
+  const xlmBalanceEl = document.getElementById('xlm-balance');
+  const laamBalanceEl = document.getElementById('laam-balance');
+  const createPoolBtn = document.getElementById('create-pool-btn');
 
-  const server = new StellarSdk.Server("https://horizon.stellar.org");
+  useSecretKeyBtn.addEventListener('click', () => {
+    secretKeySection.style.display = secretKeySection.style.display === 'block' ? 'none' : 'block';
+  });
 
-  function showStatus(message, isError = false) {
-    statusMessageEl.textContent = message;
-    statusMessageEl.className = isError ? 'error' : 'success';
-    statusMessageEl.style.display = 'block';
-  }
+  connectFreighterBtn.addEventListener('click', () => {
+    alert("Freighter wallet connection is not implemented in this demo. Please use a secret key for now.");
+  });
 
-  function displayAccountData(account) {
-    accountDataSection.style.display = 'block';
-    accountInfoEl.innerHTML = ''; // Clear previous data
-
-    // Display Public Key
-    const pkRow = `<div class="data-row">
-                     <span class="data-label">Public Key</span>
-                     <span class="data-value">${account.id}</span>
-                   </div>`;
-    accountInfoEl.innerHTML += pkRow;
-
-    // Display Balances
-    account.balances.forEach(balance => {
-      const assetCode = balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
-      const amount = parseFloat(balance.balance).toLocaleString('en-US', { maximumFractionDigits: 7 });
+  // Function to fetch account balances
+  async function fetchAccountBalances(publicKey) {
+    try {
+      const server = new StellarSdk.Horizon.Server('https://horizon.stellar.org');
+      const account = await server.loadAccount(publicKey);
       
-      const balanceRow = `<div class="data-row">
-                            <span class="data-label">Balance</span>
-                            <span class="data-value">${amount} <span class="asset-code">${assetCode}</span></span>
-                          </div>`;
-      accountInfoEl.innerHTML += balanceRow;
-    });
+      let xlmBalance = '0';
+      let laamBalance = '0';
+      
+      // Extract balances from account data
+      account.balances.forEach(balance => {
+        if (balance.asset_type === 'native') {
+          xlmBalance = parseFloat(balance.balance).toFixed(2);
+        } else if (balance.asset_code === 'Laam' && balance.asset_issuer) {
+          laamBalance = parseFloat(balance.balance).toFixed(2);
+        }
+      });
+      
+      return { xlmBalance, laamBalance };
+    } catch (error) {
+      console.error("Error fetching account balances:", error);
+      throw new Error("Failed to fetch account balances");
+    }
   }
 
-  connectBtn.addEventListener('click', async () => {
+  proceedBtn.addEventListener('click', async () => {
     const secretKey = secretKeyInput.value.trim();
     if (!secretKey) {
-      showStatus("Fadlan geli Secret Key-gaaga.", true);
+      alert("Please enter your secret key.");
       return;
     }
 
-    let sourceKeys;
     try {
-      sourceKeys = StellarSdk.Keypair.fromSecret(secretKey);
-    } catch (e) {
-      showStatus("Secret Key-gaagu waa qaldan yahay. Fadlan hubi.", true);
-      accountDataSection.style.display = 'none'; // Hide data section on error
-      return;
-    }
-
-    showStatus("Connecting to Stellar Network...", false);
-    connectBtn.disabled = true;
-    connectBtn.textContent = "Connecting...";
-    accountDataSection.style.display = 'none';
-
-    try {
-      const account = await server.loadAccount(sourceKeys.publicKey());
-      showStatus("Successfully connected!", false);
-      displayAccountData(account);
+      // Validate the secret key by creating a Keypair object
+      const sourceKeys = StellarSdk.Keypair.fromSecret(secretKey);
+      const publicKey = sourceKeys.publicKey();
+      
+      // Show loading state
+      proceedBtn.textContent = "Loading...";
+      proceedBtn.disabled = true;
+      
+      // Fetch account balances
+      const balances = await fetchAccountBalances(publicKey);
+      
+      // Update UI with wallet information
+      walletPublicKeyEl.textContent = `(${publicKey.slice(0, 8)}...${publicKey.slice(-4)})`;
+      xlmBalanceEl.textContent = balances.xlmBalance;
+      laamBalanceEl.textContent = balances.laamBalance;
+      
+      // Show wallet balance section
+      walletBalanceSection.style.display = 'block';
+      
+      // Reset button state
+      proceedBtn.textContent = "Proceed & Check Balance";
+      proceedBtn.disabled = false;
       
     } catch (error) {
-      console.error("Stellar Connection Error:", error);
-      let errorMessage = "Could not load account. ";
-      if (error.response && error.response.status === 404) {
-        errorMessage += "This account does not exist on the public network.";
-      } else {
-        errorMessage += "Please check your network connection and try again.";
-      }
-      showStatus(errorMessage, true);
-    } finally {
-      connectBtn.disabled = false;
-      connectBtn.textContent = "Connect Wallet";
+      console.error("Error:", error);
+      alert("Invalid Secret Key or network error. Please check and try again.");
+      proceedBtn.textContent = "Proceed & Check Balance";
+      proceedBtn.disabled = false;
     }
   });
 
+  createPoolBtn.addEventListener('click', async () => {
+    alert("Pool creation functionality would be implemented here. This is a demo.");
+    
+    // In a real implementation, you would:
+    // 1. Get the amounts from the user for XLM and Laam
+    // 2. Build a transaction with liquidityPoolDeposit operation
+    // 3. Sign and submit the transaction
+  });
+
+  // --- Existing Pool Browser Logic ---
+  const API = "https://horizon.stellar.org/liquidity_pools?order=desc&limit=200";
+  const rowsEl = document.getElementById('rows');
+  const qEl = document.getElementById('q');
+  const sortEl = document.getElementById('sort');
+  const refreshBtn = document.getElementById('refresh');
+  const loadingEl = document.getElementById('loading');
+
+  let POOLS = [];
+
+  function assetLabel(r) {
+    if (!r) return "?";
+    if (r.asset_type === "native") return "XLM";
+    return r.asset_code || "?";
+  }
+
+  function fmt(n, max=2){
+    return new Intl.NumberFormat(undefined, {maximumFractionDigits:max}).format(parseFloat(n||0));
+  }
+
+  function render(list){
+    rowsEl.innerHTML = "";
+    for (const p of list){
+      const a = assetLabel(p.reserves?.[0]);
+      const b = assetLabel(p.reserves?.[1]);
+      const aAmt = p.reserves?.[0]?.amount ?? 0;
+      const bAmt = p.reserves?.[1]?.amount ?? 0;
+      const tr = document.createElement('tr');
+      const poolUrl = `https://stellar.expert/explorer/public/liquidity-pool/${p.id}`;
+      tr.innerHTML = `
+        <td><div class="pair"><span class="chip">${a}</span> / <span class="chip">${b}</span></div></td>
+        <td><div>${fmt(aAmt)} <span class="muted">${a}</span></div><div>${fmt(bAmt)} <span class="muted">${b}</span></div></td>
+        <td>${p.fee_bp} bp</td>
+        <td>${fmt(p.total_shares)}</td>
+        <td><a class="link" href="${poolUrl}" target="_blank" rel="noopener">View</a></td>
+      `;
+      rowsEl.appendChild(tr);
+    }
+  }
+
+  function calcLiquidity(p) { return parseFloat(p.reserves?.[0]?.amount || 0) + parseFloat(p.reserves?.[1]?.amount || 0); }
+
+  function applyFilters(){
+    const q = (qEl.value || "").trim().toUpperCase();
+    let list = [...POOLS];
+    if (q) {
+      list = list.filter(p => (assetLabel(p.reserves?.[0]) + assetLabel(p.reserves?.[1])).toUpperCase().includes(q));
+    }
+    const s = sortEl.value;
+    if (s === '-liquidity') list.sort((x,y) => calcLiquidity(y) - calcLiquidity(x));
+    if (s === 'liquidity') list.sort((x,y) => calcLiquidity(x) - calcLiquidity(y));
+    render(list);
+  }
+
+  async function fetchAll(){
+    loadingEl.style.display = "block";
+    let url = API;
+    const all = [];
+    try {
+      for (let i=0; i<5 && url; i++){
+        const res = await fetch(url);
+        const data = await res.json();
+        all.push(...data._embedded.records);
+        url = data._links?.next?.href || null;
+      }
+      POOLS = all;
+    } catch (e) { console.error(e); }
+    loadingEl.style.display = "none";
+    applyFilters();
+  }
+
+  qEl.addEventListener('input', applyFilters);
+  sortEl.addEventListener('change', applyFilters);
+  refreshBtn.addEventListener('click', fetchAll);
+
+  fetchAll();
 })();
 </script>
 </body>
