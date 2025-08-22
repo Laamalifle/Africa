@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Laam Pools — Stellar AMM Explorer</title>
-  <meta name="description" content="Lightweight Stellar AMM pools explorer like Aqua. Browse, sort, and filter liquidity pools." />
+  <meta name="description" content="Lightweight Stellar AMM pools explorer. Browse, sort, filter, and create liquidity pools." />
 
   <style>
     :root {
@@ -30,6 +30,62 @@
     .title { font-weight: 800; letter-spacing: .5px; font-size: clamp(22px, 3vw, 32px); }
     .subtitle { color: var(--muted); margin-top: 6px; font-size: 14px; }
     .shell { width: min(1100px, 95%); margin: 18px auto 40px; }
+    
+    /* ✅ Styles for Create Pool Section */
+    .create-pool-section {
+      background: var(--card);
+      border: 1px solid #23264b;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.2);
+    }
+    .create-pool-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .pool-inputs {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .pool-inputs input {
+      background: #111437;
+      border: 1px solid #222657;
+      border-radius: 12px;
+      padding: 12px;
+      color: var(--txt);
+      font-size: 16px;
+      width: 150px;
+      text-align: center;
+    }
+    .pool-inputs span {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--muted);
+    }
+    .create-pool-button {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .create-pool-button:hover {
+      background: #5a68e8;
+    }
+
     .toolbar {
       display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
       background: var(--card); padding: 14px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.25);
@@ -44,17 +100,17 @@
     .search input {
       outline: none; border: 0; background: transparent; color: var(--txt); width: 100%;
     }
-    select, button {
+    select, .refresh-button {
       background: #111437; color: var(--txt); border: 1px solid #222657; border-radius: 12px; padding: 10px 12px;
     }
-    button { cursor: pointer; }
+    .refresh-button { cursor: pointer; }
     .table {
       margin-top: 14px; background: var(--card); border-radius: 16px; overflow: hidden; border: 1px solid #23264b;
     }
     table { width: 100%; border-collapse: collapse; }
     thead th {
       text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
-      background: #15183a; padding: 12px 14px; border-bottom: 1px solid #23264b; position: sticky; top: 64px; z-index: 4;
+      background: #15183a; padding: 12px 14px; border-bottom: 1px solid #23264b; position: sticky; top: 84px; z-index: 4;
     }
     tbody td { padding: 14px; border-bottom: 1px solid #23264b; }
     tbody tr:hover { background: rgba(255,255,255,0.03); }
@@ -90,10 +146,21 @@
 <body>
   <header>
     <div class="title">Laam Pools — Stellar AMM</div>
-    <div class="subtitle">Browse Stellar liquidity pools. Filter by asset and sort by reserves, fee, or total shares.</div>
+    <div class="subtitle">Browse, filter, and create Stellar liquidity pools.</div>
   </header>
 
   <div class="shell">
+    <!-- ✅ CREATE POOL SECTION ADDED -->
+    <div class="create-pool-section">
+      <div class="create-pool-title">Create a New Liquidity Pool</div>
+      <div class="pool-inputs">
+        <input type="text" value="XLM" readonly>
+        <span>/</span>
+        <input type="text" value="Laam" readonly>
+      </div>
+      <button id="create-pool-btn" class="create-pool-button">Create Pool</button>
+    </div>
+
     <div class="toolbar">
       <div class="search">
         🔎
@@ -107,7 +174,7 @@
         <option value="-fee">Sort: Fee (desc)</option>
         <option value="fee">Sort: Fee (asc)</option>
       </select>
-      <button id="refresh">↻ Refresh</button>
+      <button id="refresh" class="refresh-button">↻ Refresh</button>
     </div>
 
     <div id="status" class="pill" style="margin-top:12px; display:none;">Loading…</div>
@@ -143,13 +210,19 @@
   const refreshBtn = document.getElementById('refresh');
   const loadingEl = document.getElementById('loading');
   const statusEl = document.getElementById('status');
+  const createPoolBtn = document.getElementById('create-pool-btn'); // ✅ Get the new button
 
   let POOLS = [];
+
+  // ✅ Event listener for the create pool button
+  createPoolBtn.addEventListener('click', () => {
+    alert("Please connect your wallet or enter your secret key to continue.");
+    // In a real app, you would trigger a wallet connection modal here.
+  });
 
   function assetLabel(r) {
     if (!r) return "?";
     if (r.asset === "native") return "XLM";
-    // "CODE:ISSUER"
     const [code] = r.asset.split(":");
     return code || r.asset;
   }
@@ -167,7 +240,6 @@
       const b = assetLabel(p.reserves?.[1]);
       const aAmt = p.reserves?.[0]?.amount ?? 0;
       const bAmt = p.reserves?.[1]?.amount ?? 0;
-      const pair = `${a}/${b}`;
       const tr = document.createElement('tr');
       tr.className = "row";
 
@@ -194,7 +266,6 @@
   }
 
   function calcLiquidityNumber(p){
-    // Heuristic: sum of reserves in their native units (not USD). Only for sorting.
     const aAmt = parseFloat(p.reserves?.[0]?.amount || 0);
     const bAmt = parseFloat(p.reserves?.[1]?.amount || 0);
     return (aAmt + bAmt);
@@ -230,13 +301,11 @@
     let url = API;
     const all = [];
     try {
-      // paginate Horizon until no next page (cap ~1000 to stay light)
       for (let i=0; i<5 && url; i++){
         const res = await fetch(url, {headers: {"Accept":"application/json"}});
         const data = await res.json();
         if (!data || !data._embedded) break;
         all.push(...data._embedded.records);
-        // find next link
         url = data._links?.next?.href || null;
       }
       POOLS = all.map(p => ({
@@ -266,4 +335,4 @@
 })();
 </script>
 </body>
-  </html>
+</html>
