@@ -392,62 +392,75 @@ async function createLiquidityPool(xlmAmount, laamAmount) {
 
     const account = await server.loadAccount(publicKey);
 
-    // Assets
-    const assetA = StellarSdk.Asset.native();
-    const assetB = LAAM_ASSET;
-    const feeBP = 30; // 0.3%
-
-    // Liquidity pool parameters
-    const lpParams = new StellarSdk.LiquidityPoolParameters(
-      'constant_product',
-      assetA,
-      assetB,
-      feeBP
-    );
-    const poolId = lpParams.liquidityPoolId();
-    const lpShareAsset = new StellarSdk.LiquidityPoolShareAsset(poolId);
-
-    // Build transaction
-    let transaction = new StellarSdk.TransactionBuilder(account, {
+    const txb = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase
-    })
-      // Trustline to LP shares
-      .addOperation(StellarSdk.Operation.changeTrust({
-        asset: lpShareAsset
-      }))
-      // Deposit
-      .addOperation(StellarSdk.Operation.liquidityPoolDeposit({
-        liquidityPoolId: poolId,
+    });
+
+    // Assets + LP id (hex)
+    const [assetA, assetB] = [StellarSdk.Asset.native(), LAAM_ASSET]
+      .sort(StellarSdk.Asset.compare);
+    const lpIdHex = StellarSdk
+      .getLiquidityPoolId('constant_product', { assetA, assetB, fee: 30 })
+      .toString('hex');
+
+    // 1) Trust Laam asset haddii uusan jirin
+    const hasLaam = account.balances.some(
+      b => b.asset_code === 'Laam' && b.asset_issuer === LAAM_ASSET.getIssuer()
+    );
+    if (!hasLaam) {
+      txb.addOperation(StellarSdk.Operation.changeTrust({ asset: LAAM_ASSET }));
+    }
+
+    // 2) Trustline u samee "liquidity_pool_shares" haddii uusan jirin
+    const hasLpTrust = account.balances.some(
+      b => b.asset_type === 'liquidity_pool_shares' && b.liquidity_pool_id === lpIdHex
+    );
+    if (!hasLpTrust) {
+      // changeTrust aqbalaya LiquidityPoolId -> trustline for pool shares
+      txb.addOperation(
+        StellarSdk.Operation.changeTrust({ asset: new StellarSdk.LiquidityPoolId(lpIdHex) })
+      );
+    }
+
+    // 3) Deposit — isticmaal min/max price ku wareegsan ratio-ga aad gelinayso
+    const price = xlmAmount / laamAmount;
+    const minPrice = (price * 0.9).toString();
+    const maxPrice = (price * 1.1).toString();
+
+    txb.addOperation(
+      StellarSdk.Operation.liquidityPoolDeposit({
+        liquidityPoolId: lpIdHex,
         maxAmountA: xlmAmount.toString(),
         maxAmountB: laamAmount.toString(),
-        minPrice: "0.1",
-        maxPrice: "10"
-      }))
-      .setTimeout(30)
-      .build();
+        minPrice,
+        maxPrice
+      })
+    );
+
+    const tx = txb.setTimeout(30).build();
 
     showLoading("Signing transaction...");
-    transaction.sign(sourceKeys);
+    tx.sign(sourceKeys);
 
     showLoading("Submitting transaction...");
-    const txResult = await server.submitTransaction(transaction);
+    const res = await server.submitTransaction(tx);
 
-    showSuccess(`✅ Pool created! Hash: ${txResult.hash}`);
-    return txResult;
-
+    showSuccess(`Pool created successfully! Transaction Hash: ${res.hash}`);
+    return res;
   } catch (error) {
     console.error("Error creating liquidity pool:", error);
-    let errorMessage = "Failed to create pool. ";
+    let msg = "Failed to create pool. ";
     if (error.response?.data?.extras?.result_codes) {
-      errorMessage += `Codes: ${JSON.stringify(error.response.data.extras.result_codes)}`;
+      msg += `Error codes: ${JSON.stringify(error.response.data.extras.result_codes)}`;
     } else {
-      errorMessage += error.message;
+      msg += error.message;
     }
-    showError(errorMessage);
+    showError(msg);
     throw error;
   }
 }
+  
 
   // Function to get the liquidity pool ID for XLM and Laam
   async function getLiquidityPoolId() {
