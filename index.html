@@ -386,68 +386,68 @@ const LAAM_ASSET = new StellarSdk.Asset('Laam', 'GBA4EX43M25UPV4WIE6RRMQOFTWXZZR
   function showLoading(message) {
     showStatus(message, 'loading');
   }
+async function createLiquidityPool(xlmAmount, laamAmount) {
+  try {
+    showLoading("Building transaction...");
 
-  // Function to create the liquidity pool
-  async function createLiquidityPool(xlmAmount, laamAmount) {
-    try {
-      showLoading("Building transaction...");
-      
-      // Load the account to get the current sequence number
-      const account = await server.loadAccount(publicKey);
-      
-      // Create the transaction
-      let transaction = new StellarSdk.TransactionBuilder(account, {
-        fee: StellarSdk.BASE_FEE,
-        networkPassphrase: networkPassphrase
-      });
-      
-      // First, we need to create a change trust operation for the Laam asset
-      // This establishes a trustline to the asset
-      transaction.addOperation(StellarSdk.Operation.changeTrust({
-        asset: LAAM_ASSET,
-        limit: laamAmount.toString()
-      }));
-      
-      // Create liquidity pool deposit operation
-      // For a new pool, we need to use liquidityPoolDeposit with the correct parameters
-      transaction.addOperation(StellarSdk.Operation.liquidityPoolDeposit({
-        liquidityPoolId: await getLiquidityPoolId(),
+    const account = await server.loadAccount(publicKey);
+
+    // Assets
+    const assetA = StellarSdk.Asset.native();
+    const assetB = LAAM_ASSET;
+    const feeBP = 30; // 0.3%
+
+    // Liquidity pool parameters
+    const lpParams = new StellarSdk.LiquidityPoolParameters(
+      'constant_product',
+      assetA,
+      assetB,
+      feeBP
+    );
+    const poolId = lpParams.liquidityPoolId();
+    const lpShareAsset = new StellarSdk.LiquidityPoolShareAsset(poolId);
+
+    // Build transaction
+    let transaction = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase
+    })
+      // Trustline to LP shares
+      .addOperation(StellarSdk.Operation.changeTrust({
+        asset: lpShareAsset
+      }))
+      // Deposit
+      .addOperation(StellarSdk.Operation.liquidityPoolDeposit({
+        liquidityPoolId: poolId,
         maxAmountA: xlmAmount.toString(),
         maxAmountB: laamAmount.toString(),
         minPrice: "0.1",
         maxPrice: "10"
-      }));
-      
-      // Set a timeout and build the transaction
-      transaction.setTimeout(30);
-      transaction = transaction.build();
-      
-      // Sign the transaction
-      showLoading("Signing transaction...");
-      transaction.sign(sourceKeys);
-      
-      // Submit the transaction
-      showLoading("Submitting transaction...");
-      const transactionResult = await server.submitTransaction(transaction);
-      
-      // Show success message with transaction hash
-      showSuccess(`Pool created successfully! Transaction Hash: ${transactionResult.hash}`);
-      
-      return transactionResult;
-    } catch (error) {
-      console.error("Error creating liquidity pool:", error);
-      let errorMessage = "Failed to create pool. ";
-      
-      if (error.response && error.response.data && error.response.data.extras && error.response.data.extras.result_codes) {
-        errorMessage += `Error codes: ${JSON.stringify(error.response.data.extras.result_codes)}`;
-      } else {
-        errorMessage += error.message;
-      }
-      
-      showError(errorMessage);
-      throw error;
+      }))
+      .setTimeout(30)
+      .build();
+
+    showLoading("Signing transaction...");
+    transaction.sign(sourceKeys);
+
+    showLoading("Submitting transaction...");
+    const txResult = await server.submitTransaction(transaction);
+
+    showSuccess(`✅ Pool created! Hash: ${txResult.hash}`);
+    return txResult;
+
+  } catch (error) {
+    console.error("Error creating liquidity pool:", error);
+    let errorMessage = "Failed to create pool. ";
+    if (error.response?.data?.extras?.result_codes) {
+      errorMessage += `Codes: ${JSON.stringify(error.response.data.extras.result_codes)}`;
+    } else {
+      errorMessage += error.message;
     }
+    showError(errorMessage);
+    throw error;
   }
+}
 
   // Function to get the liquidity pool ID for XLM and Laam
   async function getLiquidityPoolId() {
